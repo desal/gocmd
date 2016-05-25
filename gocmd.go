@@ -1,6 +1,7 @@
 package gocmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -123,4 +124,11 @@ func (c *Context) Install(workingDir string, pkgs string) error {
 func (c *Context) IsStdLib(importPath string) bool {
 	_, ok := stdLibs[importPath]
 	return ok
+}
+
+func (c *Context) Format(src string) (string, error) {
+	cmdCtx := cmd.NewContext(".", c.output, cmd.Warn)
+	r := bytes.NewReader([]byte(src))
+	output, err := cmdCtx.PipeExecf(r, "gofmt")
+	return output, err
 }
