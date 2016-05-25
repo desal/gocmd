@@ -105,19 +105,12 @@ func (c *Context) List(workingDir, pkgs string) (map[string]map[string]interface
 }
 
 func (c *Context) Dir(workingDir, pkg string) (string, bool) {
-	if strings.Contains(workingDir, " ") {
-		panic("Can only check a single package")
+	for _, entry := range c.goPath {
+		joined := filepath.Join(entry, "src", pkg)
+		if dsutil.CheckPath(joined) {
+			return joined, true
+		}
 	}
-	cmdCtx := cmd.NewContext(workingDir, c.output)
-	list, err := c.list(workingDir, pkg, cmdCtx)
-	if err != nil {
-		goto missing
-	} else if pkgList, ok := list[pkg]; !ok {
-		goto missing
-	} else {
-		return pkgList["Dir"].(string), true
-	}
-missing:
 	return filepath.Join(c.goPath[0], "src", pkg), false
 }
 
