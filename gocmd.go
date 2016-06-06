@@ -73,7 +73,10 @@ func (c *Context) list(workingDir, pkgs string, cmdCtx *cmd.Context) (
 	map[string]map[string]interface{}, error) {
 
 	result := map[string]map[string]interface{}{}
-	cmdRes, _ := cmdCtx.Execf("go list -json %s", pkgs)
+	cmdRes, err := cmdCtx.Execf("go list -json %s", pkgs)
+	if err != nil {
+		return result, err
+	}
 
 	dec := json.NewDecoder(strings.NewReader(cmdRes))
 	for {
