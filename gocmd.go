@@ -7,73 +7,97 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/desal/cmd"
 	"github.com/desal/dsutil"
+	"github.com/desal/richtext"
 )
 
-type empty struct{}
-type set map[string]empty
+//go:generate stringer -type Flag
+
+type (
+	empty     struct{}
+	Flag      int
+	stringSet map[string]empty
+
+	Context struct {
+		format   richtext.Format
+		goPath   []string
+		cmdFlags []cmd.Flag
+	}
+)
+
+const (
+	_ Flag = iota
+	MustExit
+	MustPanic
+	Warn
+	Verbose
+	PassThrough
+)
 
 var (
-	stdLibs   set
+	stdLibs   stringSet
 	cacheLock sync.Mutex
+	cmdFlags  = map[Flag]cmd.Flag{
+		MustExit:  cmd.MustExit,
+		MustPanic: cmd.MustPanic,
+		Warn:      cmd.Warn,
+		Verbose:   cmd.Verbose,
+	}
 )
 
-type Context struct {
-	output cmd.Output
-	goPath []string
+func New(format richtext.Format, goPath []string, flags ...Flag) *Context {
+	c := &Context{format: format, goPath: goPath}
+	for _, flag := range flags {
+		c.cmdFlags = append(c.cmdFlags, cmdFlags[flag])
+	}
+
+	if err := c.checkCache(); err != nil {
+		panic(err)
+	}
+	return c
 }
 
-func New(output cmd.Output, goPath []string) *Context {
-	result := &Context{output: output, goPath: goPath}
-	result.checkCache()
-	return result
-}
-
-func FromEnv(output cmd.Output) []string {
+func EnvGoPath() ([]string, error) {
 	envPath := os.Getenv("GOPATH")
 	if len(envPath) == 0 {
-		output.Error("GOPATH not set")
-		os.Exit(1)
+		return nil, fmt.Errorf("GOPATH not set")
 	}
 
-	var goPath []string
-	if runtime.GOOS == "windows" {
-		goPath = strings.Split(envPath, ";")
-	} else {
-		goPath = strings.Split(envPath, ":")
-	}
+	goPath := strings.Split(envPath, string(filepath.ListSeparator))
 
 	if !dsutil.CheckPath(goPath[0]) {
-		output.Error("First GOPATH element (%s) not found", goPath[0])
-		os.Exit(1)
+		return nil, fmt.Errorf("First GOPATH element (%s) not found", goPath[0])
 	}
-	return goPath
+	return goPath, nil
 }
 
-func (c *Context) checkCache() {
+func (c *Context) checkCache() error {
 	cacheLock.Lock()
 	defer cacheLock.Unlock()
 	if stdLibs == nil {
-		stdLibs = set{}
-		ctx := cmd.NewContext("", c.output, cmd.Must)
-		res, _ := ctx.Execf("go list std")
+		stdLibs = stringSet{}
+		ctx := cmd.New("", c.format, c.cmdFlags...)
+		res, _, err := ctx.Execf("go list std")
+		if err != nil {
+			return err
+		}
 
 		for _, lib := range dsutil.SplitLines(res, true) {
 			stdLibs[lib] = empty{}
 		}
 	}
+	return nil
 }
 
 func (c *Context) list(workingDir, pkgs string, cmdCtx *cmd.Context) (
 	map[string]map[string]interface{}, error) {
 
 	result := map[string]map[string]interface{}{}
-	cmdRes, err := cmdCtx.Execf("go list -json %s", pkgs)
+	cmdRes, _, err := cmdCtx.Execf("go list -json %s", pkgs)
 	if err != nil {
 		return result, err
 	}
@@ -104,7 +128,7 @@ func (c *Context) list(workingDir, pkgs string, cmdCtx *cmd.Context) (
 }
 
 func (c *Context) List(workingDir, pkgs string) (map[string]map[string]interface{}, error) {
-	cmdCtx := cmd.NewContext(workingDir, c.output, cmd.Warn)
+	cmdCtx := cmd.New(workingDir, c.format, c.cmdFlags...)
 	return c.list(workingDir, pkgs, cmdCtx)
 }
 
@@ -119,8 +143,8 @@ func (c *Context) Dir(workingDir, pkg string) (string, bool) {
 }
 
 func (c *Context) Install(workingDir string, pkgs string) error {
-	cmdCtx := cmd.NewContext(workingDir, c.output, cmd.Warn)
-	_, err := cmdCtx.Execf("go install %s", pkgs)
+	cmdCtx := cmd.New(workingDir, c.format, c.cmdFlags...)
+	_, _, err := cmdCtx.Execf("go install %s", pkgs)
 	return err
 }
 
@@ -130,8 +154,8 @@ func (c *Context) IsStdLib(importPath string) bool {
 }
 
 func (c *Context) Format(src string) (string, error) {
-	cmdCtx := cmd.NewContext(".", c.output, cmd.Warn)
+	cmdCtx := cmd.New(".", c.format, c.cmdFlags...)
 	r := bytes.NewReader([]byte(src))
-	output, err := cmdCtx.PipeExecf(r, "gofmt")
+	output, _, err := cmdCtx.PipeExecf(r, "gofmt")
 	return output, err
 }
