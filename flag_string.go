@@ -4,9 +4,9 @@ package gocmd
 
 import "fmt"
 
-const _Flag_name = "MustExitMustPanicWarnVerbosePassThrough"
+const _Flag_name = "MustExitMustPanicWarnVerbosePassThroughSkipVendor"
 
-var _Flag_index = [...]uint8{0, 8, 17, 21, 28, 39}
+var _Flag_index = [...]uint8{0, 8, 17, 21, 28, 39, 49}
 
 func (i Flag) String() string {
 	i -= 1

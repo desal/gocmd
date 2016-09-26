@@ -18,12 +18,15 @@ import (
 //go:generate stringer -type Flag
 
 type (
-	empty     struct{}
-	Flag      int
+	empty   struct{}
+	Flag    int
+	flagSet map[Flag]empty
+
 	stringSet map[string]empty
 
 	Context struct {
 		format   richtext.Format
+		flags    flagSet
 		goPath   []string
 		cmdFlags []cmd.Flag
 	}
@@ -36,6 +39,7 @@ const (
 	Warn
 	Verbose
 	PassThrough
+	SkipVendor
 )
 
 var (
@@ -49,10 +53,19 @@ var (
 	}
 )
 
+func (fs flagSet) Checked(flag Flag) bool {
+	_, ok := fs[flag]
+
+	return ok
+}
+
 func New(format richtext.Format, goPath []string, flags ...Flag) *Context {
 	c := &Context{format: format, goPath: goPath}
 	for _, flag := range flags {
-		c.cmdFlags = append(c.cmdFlags, cmdFlags[flag])
+		if cmdFlag, isCmd := cmdFlags[flag]; isCmd {
+			c.cmdFlags = append(c.cmdFlags, cmdFlag)
+		}
+		c.flags[flag] = empty{}
 	}
 
 	if err := c.checkCache(); err != nil {
@@ -93,11 +106,18 @@ func (c *Context) checkCache() error {
 	return nil
 }
 
+func (c *Context) pkgFilter(pkgs string) string {
+	if !c.flags.Checked(SkipVendor) {
+		return pkgs
+	}
+	return fmt.Sprintf("$(go list %s | grep -v /vendor/)", pkgs)
+}
+
 func (c *Context) list(workingDir, pkgs string, cmdCtx *cmd.Context) (
 	map[string]map[string]interface{}, error) {
 
 	result := map[string]map[string]interface{}{}
-	cmdRes, _, err := cmdCtx.Execf("go list -json %s", pkgs)
+	cmdRes, _, err := cmdCtx.Execf("go list -json %s", c.pkgFilter(pkgs))
 	if err != nil {
 		return result, err
 	}
@@ -144,7 +164,7 @@ func (c *Context) Dir(workingDir, pkg string) (string, bool) {
 
 func (c *Context) Install(workingDir string, pkgs string) error {
 	cmdCtx := cmd.New(workingDir, c.format, c.cmdFlags...)
-	_, _, err := cmdCtx.Execf("go install %s", pkgs)
+	_, _, err := cmdCtx.Execf("go install %s", c.pkgFilter(pkgs))
 	return err
 }
 
