@@ -25,10 +25,11 @@ type (
 	stringSet map[string]empty
 
 	Context struct {
-		format   richtext.Format
-		flags    flagSet
-		goPath   []string
-		cmdFlags []cmd.Flag
+		format     richtext.Format
+		buildFlags string
+		flags      flagSet
+		goPath     []string
+		cmdFlags   []cmd.Flag
 	}
 )
 
@@ -59,8 +60,8 @@ func (fs flagSet) Checked(flag Flag) bool {
 	return ok
 }
 
-func New(format richtext.Format, goPath []string, flags ...Flag) *Context {
-	c := &Context{format: format, goPath: goPath}
+func New(format richtext.Format, goPath []string, buildFlags string, flags ...Flag) *Context {
+	c := &Context{format: format, goPath: goPath, buildFlags: buildFlags}
 	for _, flag := range flags {
 		if cmdFlag, isCmd := cmdFlags[flag]; isCmd {
 			c.cmdFlags = append(c.cmdFlags, cmdFlag)
@@ -164,7 +165,7 @@ func (c *Context) Dir(workingDir, pkg string) (string, bool) {
 
 func (c *Context) Install(workingDir string, pkgs string) error {
 	cmdCtx := cmd.New(workingDir, c.format, c.cmdFlags...)
-	_, _, err := cmdCtx.Execf("go install %s", c.pkgFilter(pkgs))
+	_, _, err := cmdCtx.Execf("go install %s %s", c.buildFlags, c.pkgFilter(pkgs))
 	return err
 }
 

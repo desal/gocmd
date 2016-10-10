@@ -12,7 +12,7 @@ import (
 func TestList(t *testing.T) {
 	goPath, err := gocmd.EnvGoPath()
 	require.Nil(t, err)
-	ctx := gocmd.New(richtext.Test(t), goPath)
+	ctx := gocmd.New(richtext.Test(t), goPath, "")
 	res, err := ctx.List("", "github.com/desal/...")
 	assert.Nil(t, err)
 	assert.Equal(t, "gocmd", res["github.com/desal/gocmd"]["Name"])
