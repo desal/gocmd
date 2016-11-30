@@ -26,6 +26,7 @@ type (
 
 	Context struct {
 		format     richtext.Format
+		tags       string
 		buildFlags string
 		flags      flagSet
 		goPath     []string
@@ -60,8 +61,8 @@ func (fs flagSet) Checked(flag Flag) bool {
 	return ok
 }
 
-func New(format richtext.Format, goPath []string, buildFlags string, flags ...Flag) *Context {
-	c := &Context{format: format, goPath: goPath, buildFlags: buildFlags}
+func New(format richtext.Format, goPath []string, tags, buildFlags string, flags ...Flag) *Context {
+	c := &Context{format: format, goPath: goPath, tags: tags, buildFlags: buildFlags}
 	for _, flag := range flags {
 		if cmdFlag, isCmd := cmdFlags[flag]; isCmd {
 			c.cmdFlags = append(c.cmdFlags, cmdFlag)
@@ -118,7 +119,7 @@ func (c *Context) list(workingDir, pkgs string, cmdCtx *cmd.Context) (
 	map[string]map[string]interface{}, error) {
 
 	result := map[string]map[string]interface{}{}
-	cmdRes, _, err := cmdCtx.Execf("go list -json %s", c.pkgFilter(pkgs))
+	cmdRes, _, err := cmdCtx.Execf("go list -tags \"%s\" -json %s", c.tags, c.pkgFilter(pkgs))
 	if err != nil {
 		return result, err
 	}
@@ -165,7 +166,7 @@ func (c *Context) Dir(workingDir, pkg string) (string, bool) {
 
 func (c *Context) Install(workingDir string, pkgs string) error {
 	cmdCtx := cmd.New(workingDir, c.format, c.cmdFlags...)
-	_, _, err := cmdCtx.Execf("go install %s %s", c.buildFlags, c.pkgFilter(pkgs))
+	_, _, err := cmdCtx.Execf("go install -tags \"%s\" %s %s", c.tags, c.buildFlags, c.pkgFilter(pkgs))
 	return err
 }
 
