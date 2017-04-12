@@ -62,7 +62,7 @@ func (fs flagSet) Checked(flag Flag) bool {
 }
 
 func New(format richtext.Format, goPath []string, tags, buildFlags string, flags ...Flag) *Context {
-	c := &Context{format: format, goPath: goPath, tags: tags, buildFlags: buildFlags}
+	c := &Context{format: format, flags: flagSet{}, goPath: goPath, tags: tags, buildFlags: buildFlags}
 	for _, flag := range flags {
 		if cmdFlag, isCmd := cmdFlags[flag]; isCmd {
 			c.cmdFlags = append(c.cmdFlags, cmdFlag)
